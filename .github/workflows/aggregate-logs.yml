@@ -24,22 +24,28 @@ jobs:
           SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
-          workflows=(".github/workflows/sample-one.yml" ".github/workflows/sample-two.yml" ".github/workflows/sample-three.yml")
+          workflow_paths=(".github/workflows/sample-one.yml" ".github/workflows/sample-two.yml" ".github/workflows/sample-three.yml")
           mkdir -p logs
-          for wf in "${workflows[@]}"; do
-            run_id=$(gh api "repos/${REPO}/actions/workflows/${wf}/runs" \
+          workflows_json=$(gh api "repos/${REPO}/actions/workflows")
+          for wf_path in "${workflow_paths[@]}"; do
+            wf_id=$(echo "${workflows_json}" | jq -r ".workflows[] | select(.path == \"${wf_path}\") | .id" | head -n 1)
+            if [ -z "${wf_id}" ] || [ "${wf_id}" = "null" ]; then
+              echo "Workflow not found for ${wf_path}"
+              continue
+            fi
+            run_id=$(gh api "repos/${REPO}/actions/workflows/${wf_id}/runs" \
               -f per_page=1 \
               -f head_sha="${SHA}" \
               -f status=completed \
               --jq '.workflow_runs[0].id')
             if [ -z "${run_id}" ] || [ "${run_id}" = "null" ]; then
-              echo "No completed run found for ${wf}"
+              echo "No completed run found for ${wf_path}"
               continue
             fi
-            echo "Downloading logs for ${wf} (run ${run_id})"
-            gh api "repos/${REPO}/actions/runs/${run_id}/logs" --output "logs/${wf}.zip"
-            unzip -q "logs/${wf}.zip" -d "logs/${wf}"
-            echo "---- ${wf} logs ----"
-            find "logs/${wf}" -type f -maxdepth 2 -print -exec cat {} \;
+            echo "Downloading logs for ${wf_path} (run ${run_id})"
+            gh api "repos/${REPO}/actions/runs/${run_id}/logs" --output "logs/${wf_id}.zip"
+            unzip -q "logs/${wf_id}.zip" -d "logs/${wf_id}"
+            echo "---- ${wf_path} logs ----"
+            find "logs/${wf_id}" -type f -maxdepth 2 -print -exec cat {} \;
             echo "--------------------"
           done
