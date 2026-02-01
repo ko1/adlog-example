@@ -1,0 +1,17 @@
+name: sample-one
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/sample-one.yml"
+      - "README.md"
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print message
+        run: |
+          echo "sample-one says hello"
+          date

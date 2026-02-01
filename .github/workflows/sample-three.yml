@@ -1,0 +1,17 @@
+name: sample-three
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/sample-three.yml"
+      - "README.md"
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print message
+        run: |
+          echo "sample-three here"
+          date
