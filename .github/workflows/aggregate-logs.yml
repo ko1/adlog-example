@@ -27,21 +27,6 @@ jobs:
           workflow_names=("sample-one" "sample-two" "sample-three")
           mkdir -p logs
           runs_json=$(gh api "repos/${REPO}/actions/runs" -f per_page=100 -f head_sha="${SHA}" -f status=completed)
-          download_logs() {
-            local run_id="$1"
-            local out_zip="$2"
-            local attempts=5
-            local delay=6
-            for i in $(seq 1 "${attempts}"); do
-              if gh api "repos/${REPO}/actions/runs/${run_id}/logs" --output "${out_zip}"; then
-                return 0
-              fi
-              echo "Logs not ready (attempt ${i}/${attempts}), retrying in ${delay}s..."
-              sleep "${delay}"
-            done
-            return 1
-          }
-
           for wf_name in "${workflow_names[@]}"; do
             run_id=$(echo "${runs_json}" | jq -r ".workflow_runs[] | select(.name == \"${wf_name}\") | .id" | head -n 1)
             if [ -z "${run_id}" ] || [ "${run_id}" = "null" ]; then
@@ -49,12 +34,11 @@ jobs:
               continue
             fi
             echo "Downloading logs for ${wf_name} (run ${run_id})"
-            if ! download_logs "${run_id}" "logs/${wf_name}.zip"; then
+            if ! gh run view "${run_id}" --repo "${REPO}" --log > "logs/${wf_name}.log"; then
               echo "Failed to download logs for ${wf_name}"
               continue
             fi
-            unzip -q "logs/${wf_name}.zip" -d "logs/${wf_name}"
             echo "---- ${wf_name} logs ----"
-            find "logs/${wf_name}" -type f -maxdepth 2 -print -exec cat {} \;
+            cat "logs/${wf_name}.log"
             echo "--------------------"
           done
