@@ -24,7 +24,7 @@ jobs:
           SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
-          workflows=("sample-one.yml" "sample-two.yml" "sample-three.yml")
+          workflows=(".github/workflows/sample-one.yml" ".github/workflows/sample-two.yml" ".github/workflows/sample-three.yml")
           mkdir -p logs
           for wf in "${workflows[@]}"; do
             run_id=$(gh api "repos/${REPO}/actions/workflows/${wf}/runs" \
