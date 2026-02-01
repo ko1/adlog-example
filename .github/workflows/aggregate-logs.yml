@@ -27,6 +27,21 @@ jobs:
           workflow_paths=(".github/workflows/sample-one.yml" ".github/workflows/sample-two.yml" ".github/workflows/sample-three.yml")
           mkdir -p logs
           workflows_json=$(gh api "repos/${REPO}/actions/workflows")
+          download_logs() {
+            local run_id="$1"
+            local out_zip="$2"
+            local attempts=5
+            local delay=6
+            for i in $(seq 1 "${attempts}"); do
+              if gh api "repos/${REPO}/actions/runs/${run_id}/logs" --output "${out_zip}"; then
+                return 0
+              fi
+              echo "Logs not ready (attempt ${i}/${attempts}), retrying in ${delay}s..."
+              sleep "${delay}"
+            done
+            return 1
+          }
+
           for wf_path in "${workflow_paths[@]}"; do
             wf_id=$(echo "${workflows_json}" | jq -r ".workflows[] | select(.path == \"${wf_path}\") | .id" | head -n 1)
             if [ -z "${wf_id}" ] || [ "${wf_id}" = "null" ]; then
@@ -43,7 +58,10 @@ jobs:
               continue
             fi
             echo "Downloading logs for ${wf_path} (run ${run_id})"
-            gh api "repos/${REPO}/actions/runs/${run_id}/logs" --output "logs/${wf_id}.zip"
+            if ! download_logs "${run_id}" "logs/${wf_id}.zip"; then
+              echo "Failed to download logs for ${wf_path}"
+              continue
+            fi
             unzip -q "logs/${wf_id}.zip" -d "logs/${wf_id}"
             echo "---- ${wf_path} logs ----"
             find "logs/${wf_id}" -type f -maxdepth 2 -print -exec cat {} \;
