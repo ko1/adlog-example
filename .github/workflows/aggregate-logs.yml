@@ -24,9 +24,9 @@ jobs:
           SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
-          workflow_paths=(".github/workflows/sample-one.yml" ".github/workflows/sample-two.yml" ".github/workflows/sample-three.yml")
+          workflow_names=("sample-one" "sample-two" "sample-three")
           mkdir -p logs
-          workflows_json=$(gh api "repos/${REPO}/actions/workflows")
+          runs_json=$(gh api "repos/${REPO}/actions/runs" -f per_page=100 -f head_sha="${SHA}" -f status=completed)
           download_logs() {
             local run_id="$1"
             local out_zip="$2"
@@ -42,28 +42,19 @@ jobs:
             return 1
           }
 
-          for wf_path in "${workflow_paths[@]}"; do
-            wf_id=$(echo "${workflows_json}" | jq -r ".workflows[] | select(.path == \"${wf_path}\") | .id" | head -n 1)
-            if [ -z "${wf_id}" ] || [ "${wf_id}" = "null" ]; then
-              echo "Workflow not found for ${wf_path}"
-              continue
-            fi
-            run_id=$(gh api "repos/${REPO}/actions/workflows/${wf_id}/runs" \
-              -f per_page=1 \
-              -f head_sha="${SHA}" \
-              -f status=completed \
-              --jq '.workflow_runs[0].id')
+          for wf_name in "${workflow_names[@]}"; do
+            run_id=$(echo "${runs_json}" | jq -r ".workflow_runs[] | select(.name == \"${wf_name}\") | .id" | head -n 1)
             if [ -z "${run_id}" ] || [ "${run_id}" = "null" ]; then
-              echo "No completed run found for ${wf_path}"
+              echo "No completed run found for ${wf_name}"
               continue
             fi
-            echo "Downloading logs for ${wf_path} (run ${run_id})"
-            if ! download_logs "${run_id}" "logs/${wf_id}.zip"; then
-              echo "Failed to download logs for ${wf_path}"
+            echo "Downloading logs for ${wf_name} (run ${run_id})"
+            if ! download_logs "${run_id}" "logs/${wf_name}.zip"; then
+              echo "Failed to download logs for ${wf_name}"
               continue
             fi
-            unzip -q "logs/${wf_id}.zip" -d "logs/${wf_id}"
-            echo "---- ${wf_path} logs ----"
-            find "logs/${wf_id}" -type f -maxdepth 2 -print -exec cat {} \;
+            unzip -q "logs/${wf_name}.zip" -d "logs/${wf_name}"
+            echo "---- ${wf_name} logs ----"
+            find "logs/${wf_name}" -type f -maxdepth 2 -print -exec cat {} \;
             echo "--------------------"
           done
