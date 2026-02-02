@@ -19,11 +19,19 @@ jobs:
     steps:
       - name: Fetch logs from sample workflows
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.ADLOGS_GH_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
+          if [ -z "${GH_TOKEN:-}" ]; then
+            GH_TOKEN="${GITHUB_TOKEN}"
+          fi
+          export GH_TOKEN
+          echo "GH token present: ${GH_TOKEN:+yes}"
+          gh api "repos/${REPO}" --jq '.full_name' || echo "Repo check failed"
+          gh api "repos/${REPO}/actions/runs" --jq '.total_count' || echo "Runs list failed"
           workflow_names=("sample-one" "sample-two" "sample-three")
           mkdir -p logs
           runs_json=$(gh api "repos/${REPO}/actions/runs" -f per_page=100 -f head_sha="${SHA}" -f status=completed)
