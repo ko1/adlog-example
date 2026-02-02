@@ -42,6 +42,7 @@ jobs:
               continue
             fi
             echo "Downloading logs for ${wf_name} (run ${run_id})"
+            gh api "repos/${REPO}/actions/runs/${run_id}" --jq '.id' || echo "Run lookup failed for ${run_id}"
             if ! gh run view "${run_id}" --repo "${REPO}" --log > "logs/${wf_name}.log"; then
               echo "Failed to download logs for ${wf_name}"
               continue
