@@ -34,16 +34,51 @@ jobs:
           gh api "repos/${REPO}/actions/runs" --jq '.total_count' || echo "Runs list failed"
           workflow_names=("sample-one" "sample-two" "sample-three")
           mkdir -p logs
-          runs_json=$(gh api "repos/${REPO}/actions/runs" -f per_page=100 -f head_sha="${SHA}" -f status=completed)
+          fetch_runs() {
+            gh api "repos/${REPO}/actions/runs" -f per_page=100 -f head_sha="${SHA}"
+          }
+
+          wait_for_run() {
+            local wf_name="$1"
+            local attempts=30
+            local delay=10
+            for i in $(seq 1 "${attempts}"); do
+              runs_json=$(fetch_runs)
+              run_id=$(echo "${runs_json}" | jq -r ".workflow_runs[] | select(.name == \"${wf_name}\" and .status == \"completed\") | .id" | head -n 1)
+              if [ -n "${run_id}" ] && [ "${run_id}" != "null" ]; then
+                echo "${run_id}"
+                return 0
+              fi
+              echo "Waiting for ${wf_name} to complete (${i}/${attempts})..."
+              sleep "${delay}"
+            done
+            return 1
+          }
+
+          download_logs() {
+            local run_id="$1"
+            local out_file="$2"
+            local attempts=10
+            local delay=6
+            for i in $(seq 1 "${attempts}"); do
+              if gh run view "${run_id}" --repo "${REPO}" --log > "${out_file}"; then
+                return 0
+              fi
+              echo "Logs not ready (attempt ${i}/${attempts}), retrying in ${delay}s..."
+              sleep "${delay}"
+            done
+            return 1
+          }
+
           for wf_name in "${workflow_names[@]}"; do
-            run_id=$(echo "${runs_json}" | jq -r ".workflow_runs[] | select(.name == \"${wf_name}\") | .id" | head -n 1)
-            if [ -z "${run_id}" ] || [ "${run_id}" = "null" ]; then
+            run_id=$(wait_for_run "${wf_name}") || true
+            if [ -z "${run_id}" ]; then
               echo "No completed run found for ${wf_name}"
               continue
             fi
             echo "Downloading logs for ${wf_name} (run ${run_id})"
             gh api "repos/${REPO}/actions/runs/${run_id}" --jq '.id' || echo "Run lookup failed for ${run_id}"
-            if ! gh run view "${run_id}" --repo "${REPO}" --log > "logs/${wf_name}.log"; then
+            if ! download_logs "${run_id}" "logs/${wf_name}.log"; then
               echo "Failed to download logs for ${wf_name}"
               continue
             fi
