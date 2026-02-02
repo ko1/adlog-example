@@ -35,7 +35,7 @@ jobs:
           workflow_names=("sample-one" "sample-two" "sample-three")
           mkdir -p logs
           fetch_runs() {
-            gh api "repos/${REPO}/actions/runs" -f per_page=100 -f head_sha="${SHA}"
+            gh api "repos/${REPO}/actions/runs" -f per_page=100
           }
 
           wait_for_run() {
@@ -49,12 +49,12 @@ jobs:
                 sleep "${delay}"
                 continue
               fi
-              run_id=$(echo "${runs_json}" | jq -r ".workflow_runs[] | select(.name == \"${wf_name}\" and .status == \"completed\") | .id" | head -n 1)
+              run_id=$(echo "${runs_json}" | jq -r ".workflow_runs[] | select(.name == \"${wf_name}\" and .status == \"completed\" and .head_sha == \"${SHA}\") | .id" | head -n 1)
               if [ -n "${run_id}" ] && [ "${run_id}" != "null" ]; then
                 echo "${run_id}"
                 return 0
               fi
-              status=$(echo "${runs_json}" | jq -r ".workflow_runs[] | select(.name == \"${wf_name}\") | .status" | head -n 1)
+              status=$(echo "${runs_json}" | jq -r ".workflow_runs[] | select(.name == \"${wf_name}\" and .head_sha == \"${SHA}\") | .status" | head -n 1)
               echo "Waiting for ${wf_name} to complete (${i}/${attempts}); status=${status:-unknown}" >&2
               sleep "${delay}"
             done
