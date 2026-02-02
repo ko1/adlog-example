@@ -40,16 +40,22 @@ jobs:
 
           wait_for_run() {
             local wf_name="$1"
-            local attempts=30
-            local delay=10
+            local attempts=8
+            local delay=5
             for i in $(seq 1 "${attempts}"); do
               runs_json=$(fetch_runs)
+              if [ -z "${runs_json}" ] || [ "${runs_json}" = "null" ]; then
+                echo "Runs list unavailable (${i}/${attempts})" >&2
+                sleep "${delay}"
+                continue
+              fi
               run_id=$(echo "${runs_json}" | jq -r ".workflow_runs[] | select(.name == \"${wf_name}\" and .status == \"completed\") | .id" | head -n 1)
               if [ -n "${run_id}" ] && [ "${run_id}" != "null" ]; then
                 echo "${run_id}"
                 return 0
               fi
-              echo "Waiting for ${wf_name} to complete (${i}/${attempts})..."
+              status=$(echo "${runs_json}" | jq -r ".workflow_runs[] | select(.name == \"${wf_name}\") | .status" | head -n 1)
+              echo "Waiting for ${wf_name} to complete (${i}/${attempts}); status=${status:-unknown}" >&2
               sleep "${delay}"
             done
             return 1
